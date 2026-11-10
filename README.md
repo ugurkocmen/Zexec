@@ -3,7 +3,7 @@
 **Zexec** is an automated internal-network and Active Directory penetration
 testing tool. You give it a CIDR range or a single IP; it discovers live hosts,
 identifies the AD environment, enumerates it, attacks credentials and
-misconfigurations, moves laterally, and attempts to reach **Domain Admin** —
+misconfigurations, moves laterally, and attempts to reach **Domain Admin** 
 while **never** running exploits that can crash or lock systems.
 
 ## Safety model (important)
@@ -45,12 +45,12 @@ pip3 install pyyaml
 
 > Zexec auto-detects tool paths and **degrades gracefully** when a tool is
 > missing (skips that technique with a warning). Wordlists fall back to the
-> first existing entry, so it runs on any Kali/Linux build — not just WSL.
+> first existing entry, so it runs on any Kali/Linux build  not just WSL.
 
 ## Usage
 
 ```bash
-# CIDR — auto host discovery
+# CIDR  auto host discovery
 sudo python3 zexec.py -t 10.10.10.0/24
 
 # Single IP
