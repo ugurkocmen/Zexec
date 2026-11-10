@@ -3,7 +3,7 @@
 **Zexec** is an automated internal-network and Active Directory penetration
 testing tool. You give it a CIDR range or a single IP; it discovers live hosts,
 identifies the AD environment, enumerates it, attacks credentials and
-misconfigurations, moves laterally, and attempts to reach **Domain Admin** 
+misconfigurations, moves laterally, and attempts to reach **Domain Admin** —
 while **never** running exploits that can crash or lock systems.
 
 ## Safety model (important)
@@ -17,8 +17,11 @@ while **never** running exploits that can crash or lock systems.
 - **Lockout-aware spraying:** password spraying is throttled, respects the
   discovered lockout policy, and uses only a tiny safe password list.
 - **`--aggressive` gate:** NTLM relay, large spray lists, LSASS dump,
-  AD CS template/CA modification, and hash cracking with large wordlists only
-  run when you pass `--aggressive`.
+  AD CS template/CA modification run only when you pass `--aggressive`.
+- **`--crack` gate:** hash cracking is **OFF by default**. It only runs when
+  you pass `--crack hashcat` or `--crack john`, even if both tools are
+  installed. The default wordlist is Kali's `rockyou.txt`; override it with
+  `--crack-wordlist`.
 - **No persistence:** authorized corporate pentests never leave backdoors, so
   Zexec intentionally implements **no persistence** techniques (no golden
   tickets, skeleton keys, DSRM backdoors, etc.).
@@ -42,12 +45,12 @@ pip3 install pyyaml
 
 > Zexec auto-detects tool paths and **degrades gracefully** when a tool is
 > missing (skips that technique with a warning). Wordlists fall back to the
-> first existing entry, so it runs on any Kali/Linux build not just WSL.
+> first existing entry, so it runs on any Kali/Linux build — not just WSL.
 
 ## Usage
 
 ```bash
-# CIDR - auto host discovery
+# CIDR — auto host discovery
 sudo python3 zexec.py -t 10.10.10.0/24
 
 # Single IP
@@ -59,8 +62,14 @@ sudo python3 zexec.py -t 10.10.10.0/24 -u user -p 'Passw0rd!' -d corp.local
 # With an NTLM hash
 sudo python3 zexec.py -t 10.10.10.0/24 -u user -H 1a2b3c... -d corp.local
 
-# Aggressive mode (relay, LSASS dump, cracking, template modification)
+# Aggressive mode (relay, LSASS dump, template modification)
 sudo python3 zexec.py -t 10.10.10.0/24 --aggressive
+
+# Hash cracking with hashcat (default wordlist: Kali rockyou.txt)
+sudo python3 zexec.py -t 10.10.10.0/24 --crack hashcat
+
+# Hash cracking with john + a custom wordlist
+sudo python3 zexec.py -t 10.10.10.0/24 --crack john --crack-wordlist /path/list.txt
 
 # Stealth mode (avoid firewall/IDS detection)
 sudo python3 zexec.py -t 10.10.10.0/24 --stealth
@@ -68,24 +77,24 @@ sudo python3 zexec.py -t 10.10.10.0/24 --stealth
 
 ## Attack pipeline
 
-1. **Host discovery** - nmap `-sn` sweep of the CIDR.
-2. **Port scan** - SYN scan of AD/Windows ports + service detection.
-3. **Firewall evasion** - adaptive re-scan of filtered hosts (stealth-aware).
-4. **AD identification** - find DCs, domain name, SMB signing status.
-5. **AD enumeration** - users/groups/computers, SPNs, AS-REP accounts,
+1. **Host discovery:** nmap `-sn` sweep of the CIDR.
+2. **Port scan:** SYN scan of AD/Windows ports + service detection.
+3. **Firewall evasion:** adaptive re-scan of filtered hosts (stealth-aware).
+4. **AD identification:** find DCs, domain name, SMB signing status.
+5. **AD enumeration:** users/groups/computers, SPNs, AS-REP accounts,
    delegation, trusts, LAPS/gMSA, password policy, AD CS (certipy).
-6. **Credential attacks** - AS-REP roast, Kerberoast, safe spray, hash cracking.
-7. **Credential sources** - GPP passwords (MS14-025), LAPS, gMSA.
-8. **Database attacks** - Oracle, PostgreSQL, MSSQL (xp_cmdshell + linked
+6. **Credential attacks:** AS-REP roast, Kerberoast, safe spray, hash cracking.
+7. **Credential sources:** GPP passwords (MS14-025), LAPS, gMSA.
+8. **Database attacks:** Oracle, PostgreSQL, MSSQL (xp_cmdshell + linked
    servers), MySQL.
-9. **Misconfiguration abuse** - AD CS ESC1 → DCSync, shadow credentials.
-10. **ACL pathfinding** - BloodHound collection + exploit GenericAll/WriteDacl/
+9. **Misconfiguration abuse:** AD CS ESC1 → DCSync, shadow credentials.
+10. **ACL pathfinding:** BloodHound collection + exploit GenericAll/WriteDacl/
     ForceChangePassword/AddMember/DCSync over high-value targets.
-11. **Delegation abuse** - RBCD (aggressive-gated).
-12. **NTLM relay** - coercion + relay to LDAP/AD CS (aggressive-gated).
-13. **Lateral movement** - PTH/WinRM/SMB, SAM/LSA dump on owned hosts.
-14. **Domain dominance** - DCSync, child→parent trust escalation (SID history).
-15. **Reporting** - Markdown + JSON.
+11. **Delegation abuse:** RBCD (aggressive-gated).
+12. **NTLM relay:** coercion + relay to LDAP/AD CS (aggressive-gated).
+13. **Lateral movement:** PTH/WinRM/SMB, SAM/LSA dump on owned hosts.
+14. **Domain dominance:** DCSync, child→parent trust escalation (SID history).
+15. **Reporting:** Markdown + JSON.
 
 Results are written to `./zexec_output/` (`report.md`, `results.json`,
 `zexec_*.log`). A **checkpoint** (`results.json`) is saved mid-run so a crash

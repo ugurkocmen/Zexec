@@ -154,12 +154,18 @@ class CredentialAttackModule(BaseModule):
     def _crack(self, workdir: Path) -> None:
         if not self.config.get("credential_handling.crack_hashes", True):
             return
-        wordlists = self.config.get("credential_handling.wordlists", [])
-        wordlists = [w for w in wordlists if Path(w).exists()]
+        wordlists = self._resolve_wordlists(workdir)
         if not wordlists:
+            self.log.warn("no wordlist found — use --crack-wordlist to specify one")
             return
 
-        cracker = self.config.get("credential_handling.cracker", "hashcat")
+        cracker, cracker_bin = self._resolve_cracker()
+        if not cracker_bin:
+            self.log.info("no hash cracker available (hashcat/john not found) "
+                          "— skipping cracking")
+            return
+        self.log.info("using %s for hash cracking", cracker)
+
         modes = self.config.get("credential_handling.hashcat_modes", {})
 
         jobs = [
@@ -173,7 +179,7 @@ class CredentialAttackModule(BaseModule):
             for wl in wordlists:
                 if self.state.domain_admin_achieved:
                     break
-                res = self._run_crack(cracker, mode, hash_file, wl, workdir)
+                res = self._run_crack(cracker, cracker_bin, mode, hash_file, wl, workdir)
                 for user, pwd in _parse_cracked(res):
                     self.state.add_credential(
                         username=user, password=pwd, domain=self.state.domain,
@@ -184,17 +190,68 @@ class CredentialAttackModule(BaseModule):
                         f"{user} : {pwd}",
                         technique="Hash Cracking")
 
-    def _run_crack(self, cracker: str, mode: int, hash_file: str,
-                   wordlist: str, workdir: Path):
+    def _resolve_wordlists(self, workdir: Path) -> list[str]:
+        """Resolve configured wordlists, auto-decompressing ``.gz`` variants.
+
+        Many Kali installs ship only ``rockyou.txt.gz``; hashcat needs a plain
+        file, so we transparently decompress it to the work directory.
+        """
+        import gzip
+        import shutil
+        resolved: list[str] = []
+        for w in self.config.get("credential_handling.wordlists", []):
+            p = Path(w)
+            if p.exists():
+                resolved.append(str(p))
+                continue
+            gz = Path(w + ".gz")
+            if gz.exists():
+                tmp = workdir / (p.name + ".decompressed")
+                try:
+                    with gzip.open(gz, "rb") as f_in, open(tmp, "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                    resolved.append(str(tmp))
+                except OSError:
+                    continue
+        return resolved
+
+    def _resolve_cracker(self) -> tuple[str | None, str | None]:
+        """Resolve the hash cracker: (name, binary) or (None, None).
+
+        hashcat is OPTIONAL. Resolution order (configurable via
+        ``credential_handling.cracker``): hashcat → john → skip.
+        """
+        pref = self.config.get("credential_handling.cracker", "auto")
+        hc = self.config.get("tools.hashcat") or self.runner.which("hashcat")
+        jn = self.config.get("tools.john") or self.runner.which("john")
+
+        if pref == "john":
+            return ("john", jn) if jn else (None, None)
+        if pref == "hashcat":
+            if hc:
+                return ("hashcat", hc)
+            if jn:
+                self.log.info("hashcat not found — falling back to john")
+                return ("john", jn)
+            return (None, None)
+        # auto: prefer hashcat, then john, then skip
+        if hc:
+            return ("hashcat", hc)
+        if jn:
+            return ("john", jn)
+        return (None, None)
+
+    def _run_crack(self, cracker: str, cracker_bin: str, mode: int,
+                   hash_file: str, wordlist: str, workdir: Path):
         pot = workdir / f"pot_{mode}.txt"
         if cracker == "hashcat":
             return self.runner.run(
-                ["hashcat", "-m", str(mode), "-a", "0", hash_file, wordlist,
+                [cracker_bin, "-m", str(mode), "-a", "0", hash_file, wordlist,
                  "--potfile-path", str(pot), "--quiet", "--force"],
                 timeout=900, silent=True)
-        # john fallback
+        # john
         return self.runner.run(
-            ["john", f"--format={_john_fmt(mode)}", f"--wordlist={wordlist}",
+            [cracker_bin, f"--format={_john_fmt(mode)}", f"--wordlist={wordlist}",
              hash_file],
             timeout=900, silent=True)
 

@@ -52,7 +52,6 @@ safety:
     - rbcd_write                  # writes msDS-AllowedToActOnBehalfOf (own objects)
     - adcs_template_modify        # ESC4/ESC7 template/CA modification
     - samaccountname_spoofing     # noPac (modifies + reverts computer account)
-    - kerberoast_and_crack        # hash cracking (CPU/GPU heavy)
     - lsass_dump                  # procdump/comsvcs LSASS minidump on owned hosts
 
 # Firewall / IDS evasion controls (used by the evasion module and recon)
@@ -119,19 +118,21 @@ phases:
 
 # Credential sources to try, in order
 credential_handling:
-  crack_hashes: true
-  cracker: "hashcat"            # hashcat | john
+  # Hash cracking is OPT-IN. Even if hashcat/john are installed, cracking only
+  # runs when you pass --crack (or set this to true).
+  crack_hashes: false
+  # hashcat is OPTIONAL. "auto" uses hashcat if present, else john, else skips.
+  # Can also be forced to "hashcat" or "john".
+  cracker: "auto"
   hashcat_modes:
     asrep: 18200
     kerberoast: 13100
     ntlm: 1000
     netntlmv2: 5600
-  # Wordlists: first existing entry wins (portable across systems)
+  # Default wordlist: Kali's rockyou.txt. Override per-run with --crack-wordlist
+  # (or edit this list). First existing entry wins.
   wordlists:
-    - "/usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000.txt"
     - "/usr/share/wordlists/rockyou.txt"
-    - "/usr/share/seclists/Passwords/darkweb2017-top1000.txt"
-    - "/usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt"
 
 # Tool paths (auto-detected if empty). Override only if a tool is non-standard.
 tools:

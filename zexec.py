@@ -78,7 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-d", "--domain", help="Active Directory domain (FQDN or NETBIOS)")
     p.add_argument("--aggressive", action="store_true",
                    help="enable riskier techniques (relay, large spray lists, "
-                        "LSASS dump, template modification, cracking)")
+                        "LSASS dump, template modification)")
+    p.add_argument("--crack", metavar="TOOL", choices=["hashcat", "john", "auto"],
+                   help="enable hash cracking with the given tool: "
+                        "hashcat | john | auto (default wordlist: Kali rockyou.txt)")
+    p.add_argument("--crack-wordlist", metavar="FILE",
+                   help="custom wordlist for --crack (overrides the default)")
     p.add_argument("--stealth", action="store_true",
                    help="quieter scans + jitter to avoid firewall/IDS detection")
     p.add_argument("--listener", help="attacker IP for NTLM relay (default: auto-detect)")
@@ -104,8 +109,14 @@ examples:
   # With an NTLM hash
   python3 zexec.py -t 10.10.10.0/24 -u user -H 1a2b3c4d... -d corp.local
 
-  # Aggressive mode (relay, LSASS dump, cracking, template modification)
+    # Aggressive mode (relay, LSASS dump, template modification)
   python3 zexec.py -t 10.10.10.0/24 --aggressive
+
+  # Hash cracking with hashcat (default wordlist: Kali rockyou.txt)
+  python3 zexec.py -t 10.10.10.0/24 --crack hashcat
+
+  # Hash cracking with john + a custom wordlist
+  python3 zexec.py -t 10.10.10.0/24 --crack john --crack-wordlist /path/list.txt
 
   # NTLM relay with an explicit listener IP
   python3 zexec.py -t 10.10.10.0/24 --aggressive --listener 10.10.10.99
@@ -136,6 +147,15 @@ def main(argv: list[str] | None = None) -> int:
         "general.verbose": args.verbose,
         "general.listener_ip": args.listener,
     }
+
+    if args.crack:
+        overrides["credential_handling.crack_hashes"] = True
+        overrides["credential_handling.cracker"] = args.crack
+    if args.crack_wordlist:
+        if not Path(args.crack_wordlist).exists():
+            print(f"[!] warning: wordlist not found: {args.crack_wordlist}",
+                  file=sys.stderr)
+        overrides["credential_handling.wordlists"] = [args.crack_wordlist]
 
     if args.stealth:
         overrides["general.stealth"] = True
