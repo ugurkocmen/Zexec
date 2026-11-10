@@ -1,0 +1,152 @@
+# Zexec configuration
+# Default: SAFE mode (misconfiguration/feature-abuse only, NO destructive CVE exploits)
+
+general:
+  tool_name: "Zexec"
+  version: "0.2.0"
+  output_dir: "./zexec_output"
+  # Maximum parallel tasks for host-level operations
+  threads: 30
+  # Per-command timeout in seconds
+  timeout: 180
+  # Target operation mode: auto | cidr | ip
+  mode: auto
+  # Stealth mode: quieter scans + jitter to avoid firewall/IDS detection
+  stealth: false
+  # Values used by aggressive techniques (override as needed)
+  new_password: "Zexec123!"
+  computer_name: "ZEXEC$"
+  computer_password: "Zexec@12345"
+
+# Safety controls (KEEP DEFAULTS SAFE)
+safety:
+  # NEVER run destructive / system-crashing exploits (Zerologon unsafe,
+  # EternalBlue, PrintNightmare, service DoS, etc.). These are hard-excluded.
+  destructive_cves_blocked: true
+  # Persistence is intentionally OUT OF SCOPE: authorized corporate pentests
+  # never leave backdoors. No persistence techniques are implemented.
+
+  # Password spraying: highly lockout-aware. Uses a tiny safe list by default.
+  password_spray:
+    enabled: true
+    # Maximum attempts before stopping to avoid account lockout
+    max_attempts_per_account: 3
+    # Common/seasonal password patterns (tiny, low-noise)
+    safe_passwords:
+      - "Password1"
+      - "Password123"
+      - "P@ssw0rd"
+      - "Welcome1"
+      - "Welcome123"
+      - "Spring2026"
+      - "Summer2026"
+      - "Autumn2026"
+      - "Winter2026"
+      - "Company123"
+
+  # Risky-but-reversible techniques, only run with --aggressive
+  aggressive_only:
+    - password_spray_large_list
+    - ntlm_relay
+    - targeted_kerberoasting      # adds SPN to a victim account (reversible)
+    - rbcd_write                  # writes msDS-AllowedToActOnBehalfOf (own objects)
+    - adcs_template_modify        # ESC4/ESC7 template/CA modification
+    - samaccountname_spoofing     # noPac (modifies + reverts computer account)
+    - kerberoast_and_crack        # hash cracking (CPU/GPU heavy)
+    - lsass_dump                  # procdump/comsvcs LSASS minidump on owned hosts
+
+# Firewall / IDS evasion controls (used by the evasion module and recon)
+evasion:
+  # nmap timing template (0-5); lower = quieter but slower. 2 is a good default.
+  nmap_timing: 2
+  nmap_min_rate: 1000
+  nmap_max_retries: 1
+  # Fragment IP packets (-f) to slip past some firewalls
+  fragment_packets: false
+  # Delay between probes (e.g. "500ms", "1s"); empty = none
+  scan_delay: ""
+  # Optional source port to spoof (e.g. "53", "443")
+  source_port: ""
+  # Random jitter (seconds) added between authentication attempts
+  auth_jitter: 1.0
+  # Retry once with slower timing when a host appears fully filtered/blocked
+  adaptive_retry: true
+
+# Database services (Oracle, PostgreSQL, MSSQL, MySQL)
+database:
+  enabled: true
+  # Common weak credentials tried against MySQL / PostgreSQL / Oracle
+  common_credentials:
+    - ["", ""]
+    - ["root", ""]
+    - ["root", "root"]
+    - ["root", "toor"]
+    - ["admin", "admin"]
+    - ["admin", "password"]
+    - ["postgres", ""]
+    - ["postgres", "postgres"]
+    - ["system", "oracle"]
+    - ["sys", "oracle"]
+    - ["scott", "tiger"]
+    - ["dbsnmp", "dbsnmp"]
+  # Oracle SIDs to attempt
+  oracle_sids:
+    - "XE"
+    - "ORCL"
+    - "ORCLCDB"
+  mssql:
+    # Enable xp_cmdshell for RCE when sysadmin access is obtained
+    enable_xp_cmdshell: true
+    # Enumerate and follow linked servers (sp_linkedservers)
+    enumerate_links: true
+
+# Attack phases (ordered pipeline)
+phases:
+  - host_discovery
+  - port_scan
+  - ad_identification
+  - ad_enumeration
+  - credential_attacks
+  - database_attacks
+  - misconfig_abuse
+  - acl_abuse
+  - delegation_abuse
+  - relay
+  - lateral_movement
+  - domain_admin
+  - trust_attacks
+  - reporting
+
+# Credential sources to try, in order
+credential_handling:
+  crack_hashes: true
+  cracker: "hashcat"            # hashcat | john
+  hashcat_modes:
+    asrep: 18200
+    kerberoast: 13100
+    ntlm: 1000
+    netntlmv2: 5600
+  # Wordlists: first existing entry wins (portable across systems)
+  wordlists:
+    - "/usr/share/seclists/Passwords/Common-Credentials/10-million-password-list-top-1000.txt"
+    - "/usr/share/wordlists/rockyou.txt"
+    - "/usr/share/seclists/Passwords/darkweb2017-top1000.txt"
+    - "/usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt"
+
+# Tool paths (auto-detected if empty). Override only if a tool is non-standard.
+tools:
+  nmap: ""
+  netexec: ""
+  certipy: ""
+  bloodhound_python: ""
+  impacket_prefix: ""   # e.g. "impacket-" prefix used by Kali impacket-scripts
+  smbmap: ""
+  smbclient: ""
+  evil_winrm: ""
+  hashcat: ""
+  john: ""
+  masscan: ""
+  responder: ""
+  mysql: ""
+  psql: ""
+  odat: ""

@@ -1,0 +1,4 @@
+# Python dependencies for Zexec core.
+# The attack tools (impacket, netexec, certipy-ad, bloodhound, etc.) are
+# installed via apt (see README), not pip.
+PyYAML>=6.0
