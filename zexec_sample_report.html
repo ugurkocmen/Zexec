@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zexec — corp.local Internal Network &amp; AD Penetration Test Report</title>
+<style>
+:root{
+  --bg:#0b0f14; --panel:#11161d; --panel2:#161d26; --line:#232b36;
+  --txt:#d7e0ea; --dim:#8494a7; --acc:#3ba3ff; --acc2:#00e5a0;
+  --crit:#ff4757; --high:#ff7f40; --med:#ffd166; --low:#4fd1c5; --info:#6b8afd;
+  --mono:ui-monospace,Consolas,'Cascadia Code',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);
+ font:14px/1.55 'Segoe UI',system-ui,-apple-system,sans-serif;
+ -webkit-font-smoothing:antialiased}
+a{color:var(--acc);text-decoration:none}
+.mono{font-family:var(--mono);font-size:12px}
+/* ---- header ---- */
+#topbar{display:flex;align-items:center;gap:14px;padding:12px 22px;
+ background:linear-gradient(90deg,#0d1320 0%,#101a2c 60%,#0d1320 100%);
+ border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+#topbar .logo{font-weight:800;font-size:19px;letter-spacing:2.5px;color:var(--acc2)}
+#topbar .logo span{color:var(--acc)}
+#topbar .tag{color:var(--dim);font-size:12.5px}
+#topbar .pill{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.pill .p{padding:4px 12px;border-radius:12px;font-size:11px;font-weight:600;
+ border:1px solid var(--line);background:var(--panel2);white-space:nowrap}
+.p-ok{color:var(--acc2);border-color:#1d5c4a!important}
+.p-no{color:var(--dim)}
+/* ---- layout ---- */
+#wrap{display:flex;min-height:calc(100vh - 48px)}
+nav#menu{width:220px;background:var(--panel);border-right:1px solid var(--line);
+ padding:16px 0;flex-shrink:0}
+nav#menu .mi{padding:11px 20px;cursor:pointer;color:var(--dim);font-size:13.5px;
+ border-left:3px solid transparent;user-select:none}
+nav#menu .mi:hover{color:var(--txt);background:var(--panel2)}
+nav#menu .mi.active{color:var(--acc);border-left-color:var(--acc);background:var(--panel2)}
+nav#menu .sep{margin:12px 20px;border-top:1px solid var(--line)}
+main{flex:1;padding:22px 26px 60px;min-width:0}
+section p.note{color:var(--dim);font-size:12px;margin:6px 0 12px}
+h2.sec{font-size:13px;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim);
+ margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+/* ---- executive summary ---- */
+#exec{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+.execbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.execbox h3{font-size:14px;margin-bottom:10px}
+.execbox .verdict{font-size:15px;font-weight:700;margin-bottom:8px}
+.execbox .verdict.v-crit{color:var(--crit)}
+.execbox .verdict.v-warn{color:var(--high)}
+.execbox .verdict.v-ok{color:var(--acc2)}
+.execbox p{color:var(--dim);font-size:13px}
+.execbox ul{margin:10px 0 0 18px;color:var(--txt);font-size:13px}
+.execbox ul li{margin:4px 0}
+/* severity stacked bar */
+#sevbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:12px 0 6px}
+#sevbar div{height:100%}
+#sevlegend{display:flex;flex-wrap:wrap;gap:14px;color:var(--dim);font-size:12px}
+#sevlegend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+/* ---- stat cards ---- */
+#cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px 17px}
+.card .n{font-size:27px;font-weight:700;font-family:var(--mono)}
+.card .l{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:1.2px;margin-top:3px}
+.card.c-crit .n{color:var(--crit)} .card.c-high .n{color:var(--high)}
+.card.c-ok .n{color:var(--acc2)} .card.c-acc .n{color:var(--acc)}
+/* ---- tables ---- */
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;background:var(--panel);font-size:13px}
+th{background:var(--panel2);color:var(--dim);text-align:left;padding:9px 12px;
+ font-size:11px;text-transform:uppercase;letter-spacing:1px;
+ border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:top}
+tbody tr:first-child td{border-top:none}
+tr:hover td{background:#182029}
+.sev{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;
+ font-weight:700;color:#0b0f14;white-space:nowrap}
+.s-critical{background:var(--crit)} .s-high{background:var(--high)}
+.s-medium{background:var(--med)} .s-low{background:var(--low)}
+.s-info{background:var(--info)}
+.nsub{color:var(--dim);font-size:12px;margin-top:2px}
+.pw{color:var(--acc2)} .hs{color:var(--med)}
+#findings-toolbar,#creds-toolbar{display:flex;gap:10px;margin:10px 0}
+input[type=text],select{background:var(--panel2);border:1px solid var(--line);
+ color:var(--txt);padding:7px 11px;border-radius:6px;font-size:13px;outline:none}
+input[type=text]:focus,select:focus{border-color:var(--acc)}
+/* ---- network map ---- */
+#netmap{display:grid;grid-template-columns:1fr 330px;gap:14px}
+#mapbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;overflow:hidden}
+svg#map{width:100%;display:block}
+.node{cursor:pointer}
+.node rect,.node ellipse{transition:stroke .15s, filter .15s}
+.node:hover rect,.node:hover ellipse{stroke:var(--acc2);stroke-width:1.6}
+.edge{stroke:#2c3947;stroke-width:1.4;fill:none;transition:opacity .15s}
+.edge.dc{stroke:#3ba3ff44;stroke-width:1.6}
+.edge.access{stroke:#3ba3ff55;stroke-dasharray:5 4}
+.edge.access.admin{stroke:#00e5a0aa;stroke-dasharray:none;stroke-width:1.9}
+.edge.faded{opacity:.12}
+.nlabel{fill:#d7e0ea;font-size:11px;font-weight:600;font-family:var(--mono)}
+.nsub{fill:#8494a7;font-size:10px;font-family:var(--mono)}
+#detail{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+ padding:16px;overflow:auto;max-height:640px}
+#detail h3{font-size:14px;color:var(--acc);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+#detail .row{padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+#detail .row:last-child{border-bottom:none}
+#detail .k{color:var(--dim);display:inline-block;min-width:100px}
+/* ---- trees (accordion) ---- */
+.tree{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tgroup{border-bottom:1px solid var(--line)}
+.tgroup:last-child{border-bottom:none}
+.thead{padding:10px 15px;cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.thead:hover{background:var(--panel2)}
+.thead .caret{color:var(--dim);transition:transform .15s;display:inline-block;font-size:11px}
+.tgroup.open .thead .caret{transform:rotate(90deg)}
+.thead .tname{font-weight:600;font-size:13px}
+.tbadge{margin-left:auto;font-size:11px;color:var(--dim)}
+.tbody{display:none;padding:6px 16px 13px 38px;font-size:12.5px}
+.tgroup.open .tbody{display:block}
+.tbody .kv{color:var(--dim);margin-top:5px}
+.badge-dc{background:#3ba3ff22;color:var(--acc);padding:2px 9px;border-radius:9px;font-size:10px;font-weight:700}
+.badge-cred{background:#00e5a022;color:var(--acc2);padding:2px 9px;border-radius:9px;font-size:10px;font-weight:700}
+.legend{display:flex;gap:16px;padding:10px 15px;color:var(--dim);font-size:11px;flex-wrap:wrap}
+.legend .sw{display:inline-block;width:22px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.opsec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+/* ---- footer ---- */
+#foot{margin-top:36px;padding:14px 20px;border-top:1px solid var(--line);
+ color:var(--dim);font-size:11.5px;display:flex;gap:18px;flex-wrap:wrap}
+#foot .conf{color:var(--high);font-weight:600}
+@media (max-width:1100px){#netmap{grid-template-columns:1fr}#exec{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="logo">Z<span>EXEC</span></span>
+  <span class="tag">Internal Network &amp; Active Directory Penetration Test Report</span>
+  <div class="pill" id="pills"></div>
+</div>
+<div id="wrap">
+<nav id="menu">
+  <div class="mi" data-page="overview" id="mi-overview">◧ Overview</div>
+  <div class="mi" data-page="network" id="mi-network">◎ Network Map</div>
+  <div class="sep"></div>
+  <div class="mi" data-page="findings" id="mi-findings">⚠ Findings</div>
+  <div class="mi" data-page="creds" id="mi-creds">🔑 Credentials</div>
+  <div class="sep"></div>
+  <div class="mi" data-page="hosts" id="mi-hosts">🖥 Hosts</div>
+  <div class="mi" data-page="users" id="mi-users">👤 Users &amp; Access</div>
+  <div class="sep"></div>
+  <div class="mi" data-page="opsec" id="mi-opsec">📡 Activity / OPSEC</div>
+</nav>
+<main>
+
+<section id="page-overview">
+  <div id="exec">
+    <div id="exec-verdict"></div>
+    <div id="sevdist"></div>
+  </div>
+  <h2 class="sec">Key metrics</h2>
+  <div id="cards"></div>
+  <h2 class="sec">Engagement details</h2>
+  <div class="tree" id="ov-summary"></div>
+</section>
+
+<section id="page-network" style="display:none">
+  <p class="note">Domain → Domain Controllers → Hosts → Users. Green solid = local admin
+  access, blue dashed = credential/session access. Hover a user or host to isolate its
+  access edges; click any node for full detail.</p>
+  <div id="netmap">
+    <div id="mapbox">
+      <div class="legend">
+        <span><span class="sw" style="background:#3ba3ff"></span>access (credential / session)</span>
+        <span><span class="sw" style="background:#00e5a0"></span>local admin access</span>
+        <span><span class="sw" style="background:#2c3947"></span>domain membership</span>
+      </div>
+      <svg id="map" viewBox="0 0 1080 560" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div id="detail"><h3>Click a node</h3>
+      <div class="row nsub">Domain, DC, host or user — full detail appears here.</div></div>
+  </div>
+</section>
+
+<section id="page-findings" style="display:none">
+  <div id="findings-toolbar">
+    <input type="text" id="f-search" placeholder="search findings…" style="flex:1">
+    <select id="f-sev">
+      <option value="all">all severities</option>
+      <option value="critical">critical</option><option value="high">high</option>
+      <option value="medium">medium</option><option value="low">low</option>
+      <option value="info">info</option>
+    </select>
+  </div>
+  <div class="tblwrap">
+  <table id="findings"><thead><tr>
+    <th>Severity</th><th>Technique</th><th>Finding</th><th>Host</th><th>Time</th>
+  </tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<section id="page-creds" style="display:none">
+  <div id="creds-toolbar">
+    <input type="text" id="c-search" placeholder="search credentials…" style="flex:1">
+  </div>
+  <div class="tblwrap">
+  <table id="creds"><thead><tr>
+    <th>Account</th><th>Domain</th><th>Password</th><th>NT Hash</th><th>Source</th>
+  </tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<section id="page-hosts" style="display:none">
+  <div class="tree" id="hosts-tree"></div>
+</section>
+
+<section id="page-users" style="display:none">
+  <div class="tree" id="users-tree"></div>
+</section>
+
+<section id="page-opsec" style="display:none">
+  <p class="note">How much noise this engagement produced — useful for blue-team
+  correlation and post-engagement reporting.</p>
+  <div id="opsec-cards" class="opsec-grid"></div>
+  <h2 class="sec">Invocations by tool</h2>
+  <div class="tblwrap">
+  <table id="opsec-tools"><thead><tr><th>Tool</th><th>Calls</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+</main>
+</div>
+<div id="foot"></div>
+<script>
+const DATA = {"generated": "2026-11-13T13:25:39", "version": "0.2.0", "tool": "Zexec", "target": "10.10.10.0/24", "domain": "corp.local", "domain_sid": "S-1-5-21-3654046772-2731935657-1901234678", "domain_controllers": ["10.10.10.10"], "da": false, "ea": false, "hosts": [{"ip": "10.10.10.10", "hostname": "DC01.corp.local", "is_dc": true, "os": "Windows Server 2019 Standard 17763", "smb_signing": true, "ports": [{"port": 53, "service": "domain"}, {"port": 88, "service": "kerberos-sec"}, {"port": 135, "service": "msrpc"}, {"port": 389, "service": "ldap"}, {"port": 445, "service": "microsoft-ds"}, {"port": 464, "service": "kpasswd5"}, {"port": 636, "service": "ldapssl"}, {"port": 3268, "service": "ldap"}, {"port": 5985, "service": "http"}, {"port": 9389, "service": "mc-nmf"}]}, {"ip": "10.10.10.15", "hostname": "CA01.corp.local", "is_dc": false, "os": "Windows Server 2016 Standard 14393", "smb_signing": true, "ports": [{"port": 80, "service": "http"}, {"port": 135, "service": "msrpc"}, {"port": 443, "service": "ssl/http"}, {"port": 445, "service": "microsoft-ds"}]}, {"ip": "10.10.10.21", "hostname": "SQL01.corp.local", "is_dc": false, "os": "Windows Server 2019 Standard 17763", "smb_signing": false, "ports": [{"port": 135, "service": "msrpc"}, {"port": 445, "service": "microsoft-ds"}, {"port": 1433, "service": "ms-sql-s"}, {"port": 3389, "service": "ms-wbt-server"}]}, {"ip": "10.10.10.25", "hostname": "FS01.corp.local", "is_dc": false, "os": "Windows Server 2012 R2 Standard 9600", "smb_signing": false, "ports": [{"port": 139, "service": "netbios-ssn"}, {"port": 445, "service": "microsoft-ds"}, {"port": 3389, "service": "ms-wbt-server"}]}, {"ip": "10.10.10.31", "hostname": "WS-ADMIN.corp.local", "is_dc": false, "os": "Windows 10 Pro 19045", "smb_signing": null, "ports": [{"port": 445, "service": "microsoft-ds"}, {"port": 5985, "service": "http"}]}, {"ip": "10.10.10.32", "hostname": "WS-HELPDESK.corp.local", "is_dc": false, "os": "Windows 10 Pro 19045", "smb_signing": null, "ports": [{"port": 445, "service": "microsoft-ds"}]}, {"ip": "10.10.10.40", "hostname": "JENKINS.corp.local", "is_dc": false, "os": "Ubuntu 22.04", "smb_signing": null, "ports": [{"port": 22, "service": "ssh"}, {"port": 445, "service": "microsoft-ds"}, {"port": 8080, "service": "http"}]}], "credentials": [{"username": "Administrator", "domain": "corp.local", "password": "", "nthash": "326d94c2b1e7f5a03c9d8e7b6a5f4c2d", "source": "ADCS-ESC1"}, {"username": "alice", "domain": "corp.local", "password": "Welcome2026!", "nthash": "b7e94c2a6d8f1e3a5c7b9d2f4a6e8c0b", "source": "SAM-10.10.10.31"}, {"username": "FS01$", "domain": "corp.local", "password": "", "nthash": "54a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9", "source": "relay-shadow-credentials"}, {"username": "helpdesk", "domain": "corp.local", "password": "Helpdesk123!", "nthash": "", "source": "password-spray"}, {"username": "svc_backup", "domain": "corp.local", "password": "Summer2026!", "nthash": "0e9a1d2f4b6c8e7a1b3d5f7a9c2e4b6d", "source": "Kerberoasting (cracked: hashcat)"}, {"username": "svc_sql", "domain": "corp.local", "password": "", "nthash": "e19ccf75ee54e06b06a5907af13cef42", "source": "LSA-FS01"}], "findings": [{"severity": "critical", "title": "Escalated via AD CS ESC1", "detail": "Obtained Administrator NT hash via template 'CorpUser' on CA01", "host": null, "technique": "ESC1", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "critical", "title": "Valid credentials from spray", "detail": "CORP\\helpdesk : Helpdesk123!", "host": null, "technique": "Password Spray", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "critical", "title": "Kerberoastable service ticket", "detail": "TGS obtained for svc_backup", "host": null, "technique": "Kerberoasting", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "critical", "title": "Shadow credentials via NTLM relay", "detail": "Recovered FS01$ NT hash", "host": null, "technique": "NTLM Relay (Shadow Credentials)", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "AD CS ESC8 vulnerable", "detail": "CA01 web enrolment endpoint without NTLM protection", "host": null, "technique": "ESC8", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "SMB signing disabled", "detail": "Host accepts unsigned SMB — NTLM relay possible", "host": "10.10.10.21", "technique": "SMB Signing", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "SMB signing disabled", "detail": "Host accepts unsigned SMB — NTLM relay possible", "host": "10.10.10.25", "technique": "SMB Signing", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "AS-REP roastable account", "detail": "svc_backup does not require Kerberos pre-authentication", "host": null, "technique": "AS-REP Roasting", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "MSSQL sysadmin access", "detail": "CORP\\svc_sql is sysadmin on SQL01; xp_cmdshell testable (--aggressive)", "host": "10.10.10.21", "technique": "MSSQL", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "high", "title": "Privileged session detected", "detail": "CORP\\alice has a session on WS-ADMIN", "host": "10.10.10.31", "technique": "Session Enumeration", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "medium", "title": "GPP password in SYSVOL", "detail": "Groups.xml cpassword recovered (legacy MS14-025 artifact)", "host": "10.10.10.10", "technique": "GPP", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "medium", "title": "Password policy weak", "detail": "minimum length 8, complexity off, lockout threshold 5", "host": "10.10.10.10", "technique": "Password Policy", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "medium", "title": "Exposed service (nuclei network)", "detail": "[network:mssql] [tcp] 10.10.10.21:1433 — MSSQL exposed without TLS", "host": "10.10.10.21", "technique": "Nuclei Template Scan", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "medium", "title": "Unauthenticated web panel", "detail": "[http] [medium] http://10.10.10.40:8080 — Jenkins exposed", "host": "10.10.10.40", "technique": "Nuclei Template Scan", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "low", "title": "LAPS not deployed", "detail": "All host local admin passwords share one credential", "host": "10.10.10.10", "technique": "LAPS", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "low", "title": "Domain trust present", "detail": "corp.local trusts child.corp.local (forest internal)", "host": "10.10.10.10", "technique": "Trust Enumeration", "evidence": "", "timestamp": "2026-11-13T13:25:39"}, {"severity": "info", "title": "BloodHound collection complete", "detail": "users=142 computers=37 groups=21 ACLs=4812", "host": null, "technique": "BloodHound", "evidence": "", "timestamp": "2026-11-13T13:25:39"}], "access": [{"user": "svc_backup", "domain": "corp.local", "host": "10.10.10.25", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "svc_backup", "domain": "corp.local", "host": "10.10.10.21", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "alice", "domain": "corp.local", "host": "10.10.10.31", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "alice", "domain": "corp.local", "host": "10.10.10.32", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "helpdesk", "domain": "corp.local", "host": "10.10.10.25", "kind": "session", "timestamp": "2026-11-13T13:25:39"}, {"user": "helpdesk", "domain": "corp.local", "host": "10.10.10.32", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "svc_sql", "domain": "corp.local", "host": "10.10.10.21", "kind": "credential", "timestamp": "2026-11-13T13:25:39"}, {"user": "FS01$", "domain": "corp.local", "host": "10.10.10.25", "kind": "credential", "timestamp": "2026-11-13T13:25:39"}, {"user": "Administrator", "domain": "corp.local", "host": "10.10.10.10", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}, {"user": "Administrator", "domain": "corp.local", "host": "10.10.10.15", "kind": "admin", "timestamp": "2026-11-13T13:25:39"}], "meta": {"adcs_web_enrollment": ["http://10.10.10.15/certsrv"], "user_list_file": "/home/zexecute/zexec_output/users.txt", "opsec": {"commands": 412, "background": 2, "by_tool": {"nmap": 68, "nxc": 173, "bloodhound-python": 3, "certipy-ad": 6, "nuclei": 4, "GetUserSPNs": 2, "GetNPUsers": 2, "secretsdump": 5, "smbclient": 18, "psql": 9, "mysql": 7, "httpx": 3, "ldapsearch": 10}}}};
+const esc = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+const sevName = s => s.charAt(0).toUpperCase() + s.slice(1);
+const stripHost = n => (n||'').split('.')[0];
+
+/* Technique -> reference documentation (Hacker Recipes / HackTricks / MSRC) */
+const TECH_DOCS = [
+  // [match, url]
+  ['ESC1',        'https://www.thehacker.recipes/ad/movement/ad-cs-vulnerable-templates'],
+  ['ESC8',        'https://www.thehacker.recipes/ad/movement/ad-cs-web-enrollment-relay'],
+  ['ESC4',        'https://www.thehacker.recipes/ad/movement/ad-cs-vulnerable-templates'],
+  ['ADCS',        'https://www.thehacker.recipes/ad/movement/ad-cs'],
+  ['Kerberoast',  'https://www.thehacker.recipes/ad/movement/kerberos/kerberoast'],
+  ['AS-REP',      'https://www.thehacker.recipes/ad/movement/kerberos/asreproast'],
+  ['Password Spray','https://www.thehacker.recipes/ad/movement/password-spraying'],
+  ['NTLM Relay',  'https://www.thehacker.recipes/ad/movement/ntlm/relay'],
+  ['Coercion',    'https://www.thehacker.recipes/ad/movement/ntlm/coerced-authentication'],
+  ['DCSync',      'https://www.thehacker.recipes/ad/movement/dcsync'],
+  ['SMB Signing', 'https://www.thehacker.recipes/ad/movement/ntlm/relay#smb-signing'],
+  ['GPP',         'https://www.thehacker.recipes/ad/movement/group-policies'],
+  ['LAPS',        'https://www.thehacker.recipes/ad/movement/laps'],
+  ['gMSA',        'https://www.thehacker.recipes/ad/movement/gmsa'],
+  ['Trust',       'https://www.thehacker.recipes/ad/movement/trusts'],
+  ['Delegation',  'https://www.thehacker.recipes/ad/movement/kerberos/delegations'],
+  ['RBCD',        'https://www.thehacker.recipes/ad/movement/kerberos/delegations/rbcd'],
+  ['BloodHound',  'https://www.thehacker.recipes/ad/recon/bloodhound'],
+  ['Session Enumeration','https://www.thehacker.recipes/ad/recon/netexec'],
+  ['Share Enumeration','https://www.thehacker.recipes/ad/recon/netexec'],
+  ['ADIDNS',      'https://www.thehacker.recipes/ad/movement/adidns'],
+  ['CVE',         'https://book.hacktricks.xyz/windows-hardening/active-directory-directory-services'],
+  ['MSSQL',       'https://book.hacktricks.xyz/network-services-pentesting/pentesting-mssql-microsoft-sql-server'],
+  ['Nuclei',      'https://github.com/projectdiscovery/nuclei'],
+  ['noPac',       'https://www.thehacker.recipes/ad/movement/samaccountname-spoofing'],
+  ['EternalBlue', 'https://msrc.microsoft.com/update-guide/vulnerability/CVE-2017-0144'],
+  ['Zerologon',   'https://msrc.microsoft.com/update-guide/vulnerability/CVE-2020-1472'],
+  ['PrintNightmare','https://www.thehacker.recipes/ad/movement/printnightmare'],
+  ['SMBGhost',    'https://msrc.microsoft.com/update-guide/vulnerability/CVE-2020-0796'],
+  ['MachineAccountQuota','https://www.thehacker.recipes/ad/movement/machine-account-quota'],
+];
+function techDoc(tech){
+  if(!tech) return null;
+  const t = String(tech);
+  for (const [m,u] of TECH_DOCS){
+    if (t.toLowerCase().includes(m.toLowerCase())) return u;
+  }
+  return null;
+}
+
+/* ---------- menu ---------- */
+const pages = ['overview','network','findings','creds','hosts','users','opsec'];
+function show(page){
+  pages.forEach(p=>{
+    document.getElementById('page-'+p).style.display = (p===page)?'block':'none';
+    const mi = document.getElementById('mi-'+p); if(mi) mi.classList.toggle('active', p===page);
+  });
+}
+document.querySelectorAll('nav#menu .mi').forEach(mi=>
+  mi.addEventListener('click', ()=> show(mi.dataset.page)));
+
+/* ---------- header pills + footer ---------- */
+(function(){
+  document.getElementById('pills').innerHTML = `
+    <span class="p">Target: ${esc(DATA.target)}<\/span>
+    <span class="p">Domain: ${esc(DATA.domain||'—')}<\/span>
+    <span class="p ${DATA.da?'p-ok':'p-no'}">Domain Admin ${DATA.da?'achieved':'not achieved'}<\/span>
+    <span class="p ${DATA.ea?'p-ok':'p-no'}">Enterprise Admin ${DATA.ea?'achieved':'not achieved'}<\/span>`;
+  document.getElementById('foot').innerHTML = `
+    <span>Generated by <b>Zexec v${esc(DATA.version)}<\/b> — ${esc(DATA.generated)}<\/span>
+    <span class="conf">CONFIDENTIAL — this report contains recovered credentials<\/span>
+    <span>Authorized testing only<\/span>`;
+})();
+
+/* ---------- executive summary ---------- */
+(function(){
+  const f = DATA.findings;
+  const cnt = s => f.filter(x=>x.severity===s).length;
+  const total = Math.max(f.length,1);
+  let verdict, vclass, text;
+  if (DATA.ea){
+    verdict='Enterprise Admin achieved — full forest compromise'; vclass='v-crit';
+    text='Attacker controls every domain in the forest via trust escalation.';
+  } else if (DATA.da){
+    verdict='Domain Admin achieved — full domain compromise'; vclass='v-crit';
+    text='Attacker controls all domain objects and can persist undetected.';
+  } else if (cnt('critical')>0){
+    verdict='Critical exposure — direct privilege escalation paths found'; vclass='v-warn';
+    text='No domain-level compromise yet, but executable escalation paths exist.';
+  } else if (cnt('high')>0){
+    verdict='High-risk misconfigurations present'; vclass='v-warn';
+    text='Elevation likely with additional effort; remediate high findings first.';
+  } else {
+    verdict='No significant exposure detected'; vclass='v-ok';
+    text='Scope was limited or the environment is well hardened.';
+  }
+  const top = f.filter(x=>['critical','high'].includes(x.severity)).slice(0,5);
+  document.getElementById('exec-verdict').innerHTML = `
+    <div class="execbox">
+      <h3>Outcome<\/h3>
+      <div class="verdict ${vclass}">${esc(verdict)}<\/div>
+      <p>${esc(text)}<\/p>
+      <ul>${top.map(x=>{ const d=techDoc(x.technique); return `<li><span class="sev s-${esc(x.severity)}">${sevName(esc(x.severity))}<\/span>
+        <b style="margin-left:6px">${esc(x.title)}<\/b>${d?` <a href="${d}" target="_blank" rel="noopener">📖<\/a>`:''}
+        <div class="nsub">${esc(x.detail||'').slice(0,140)}<\/div><\/li>`;}).join('') || '<li>No critical/high findings.<\/li>'}<\/ul>
+    <\/div>`;
+  const sevOrder = ['critical','high','medium','low','info'];
+  const cols = {critical:'var(--crit)',high:'var(--high)',medium:'var(--med)',
+                low:'var(--low)',info:'var(--info)'};
+  document.getElementById('sevdist').innerHTML = `
+    <div class="execbox">
+      <h3>Findings distribution — ${f.length} total<\/h3>
+      <div id="sevbar">${sevOrder.map(s=>{
+        const n=cnt(s); const w=Math.round(n/total*100);
+        return n? `<div style="width:${w}%;background:${cols[s]}" title="${s}: ${n}"><\/div>`:'';
+      }).join('')}<\/div>
+      <div id="sevlegend">${sevOrder.map(s=>
+        `<span><span class="sw" style="background:${cols[s]}"><\/span>${sevName(s)} (${cnt(s)})<\/span>`).join('')}<\/div>
+    <\/div>`;
+})();
+
+/* ---------- stat cards ---------- */
+(function(){
+  const f = DATA.findings;
+  const cnt = sev => f.filter(x=>x.severity===sev).length;
+  const cards = [
+    ['c-acc', DATA.hosts.length, 'Hosts discovered'],
+    ['c-acc', DATA.domain_controllers.length, 'Domain controllers'],
+    ['c-ok', DATA.credentials.length, 'Credentials recovered'],
+    ['c-crit', cnt('critical'), 'Critical findings'],
+    ['c-high', cnt('high'), 'High findings'],
+    ['c-acc', cnt('medium')+cnt('low'), 'Med/low findings'],
+    ['c-ok', DATA.access.length, 'Access edges mapped'],
+    [DATA.da?'c-ok':'c-no', DATA.da?'YES':'NO', 'Domain Admin'],
+    [DATA.ea?'c-ok':'c-no', DATA.ea?'YES':'NO', 'Enterprise Admin'],
+  ];
+  document.getElementById('cards').innerHTML = cards.map(c=>
+    `<div class="card ${c[0]}"><div class="n">${esc(c[1])}<\/div><div class="l">${esc(c[2])}<\/div><\/div>`).join('');
+  document.getElementById('ov-summary').innerHTML = `
+    <div class="row"><span class="k">Generated<\/span> <span class="mono">${esc(DATA.generated)}<\/span><\/div>
+    <div class="row"><span class="k">Target scope<\/span> <span class="mono">${esc(DATA.target)}<\/span><\/div>
+    <div class="row"><span class="k">Domain<\/span> <span class="mono">${esc(DATA.domain||'—')}<\/span><\/div>
+    <div class="row"><span class="k">Domain controllers<\/span> <span class="mono">${esc(DATA.domain_controllers.join(', ')||'—')}<\/span><\/div>
+    <div class="row"><span class="k">Domain SID<\/span> <span class="mono">${esc(DATA.domain_sid||'—')}<\/span><\/div>`;
+})();
+
+/* ---------- findings table ---------- */
+(function(){
+  const tb = document.querySelector('#findings tbody');
+  function render(list){
+    tb.innerHTML = list.map(f=>{
+      const doc = techDoc(f.technique);
+      return `<tr>
+      <td><span class="sev s-${esc(f.severity)}">${sevName(esc(f.severity))}<\/span><\/td>
+      <td class="mono">${esc(f.technique)||'—'}${doc?` <a href="${doc}" target="_blank" rel="noopener" title="reference documentation">📖<\/a>`:''}<\/td>
+      <td><b>${esc(f.title)}<\/b>${f.detail?`<div class="nsub">${esc(f.detail)}<\/div>`:''}<\/td>
+      <td class="mono">${esc(f.host)||'—'}<\/td>
+      <td class="nsub">${esc(f.timestamp)||''}<\/td>
+    <\/tr>`;}).join('') || '<tr><td colspan=5 style="color:var(--dim)">no findings<\/td><\/tr>';
+  }
+  render(DATA.findings);
+  const apply = () => {
+    const q = document.getElementById('f-search').value.toLowerCase();
+    const sev = document.getElementById('f-sev').value;
+    render(DATA.findings.filter(f=>
+      (sev==='all'||f.severity===sev) &&
+      (!q || (f.title+' '+f.detail+' '+f.technique+' '+(f.host||'')).toLowerCase().includes(q))));
+  };
+  document.getElementById('f-search').addEventListener('input', apply);
+  document.getElementById('f-sev').addEventListener('change', apply);
+})();
+
+/* ---------- credentials table ---------- */
+(function(){
+  const tb = document.querySelector('#creds tbody');
+  function render(list){
+    tb.innerHTML = list.map(c=>`<tr>
+      <td class="mono"><b>${esc(c.username)}<\/b><\/td>
+      <td class="mono">${esc(c.domain)||'—'}<\/td>
+      <td class="mono pw">${c.password?esc(c.password):'—'}<\/td>
+      <td class="mono hs">${c.nthash?esc(c.nthash):'—'}<\/td>
+      <td class="nsub">${esc(c.source)}<\/td>
+    <\/tr>`).join('') || '<tr><td colspan=5 style="color:var(--dim)">no credentials recovered<\/td><\/tr>';
+  }
+  render(DATA.credentials);
+  document.getElementById('c-search').addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    render(DATA.credentials.filter(c=>
+      !q || (c.username+' '+c.domain+' '+c.source).toLowerCase().includes(q)));
+  });
+})();
+
+/* ---------- hosts tree ---------- */
+(function(){
+  const el = document.getElementById('hosts-tree');
+  el.innerHTML = DATA.hosts.map((h,i)=>{
+    const accessUsers = DATA.access.filter(a=>a.host===h.ip);
+    return `<div class="tgroup">
+      <div class="thead"><span class="caret">▶<\/span>
+        <span class="tname mono">${esc(h.ip)}<\/span>
+        ${h.hostname?`<span class="nsub">${esc(h.hostname)}<\/span>`:''}
+        ${h.is_dc?'<span class="badge-dc">DC<\/span>':''}
+        ${h.smb_signing===false?'<span class="badge-cred">signing off<\/span>':''}
+        <span class="tbadge">${h.ports.length} port(s) · ${accessUsers.length} access edge(s)<\/span><\/div>
+      <div class="tbody">
+        <div class="kv">OS<\/div> <div class="mono">${esc(h.os)||'—'}<\/div>
+        <div class="kv">Open ports<\/div>
+        <div class="mono">${h.ports.length? h.ports.map(p=>`${p.port}${p.service?'/'+esc(p.service):''}`).join(' · ') : '—'}<\/div>
+        <div class="kv">Users with access<\/div>
+        <div class="mono">${accessUsers.length? accessUsers.map(a=>`${esc(a.user)} (${esc(a.kind)})`).join(' · ') : '—'}<\/div>
+      <\/div><\/div>`;
+  }).join('') || '<div class="tgroup"><div class="tbody">no hosts<\/div><\/div>';
+  wireTree(el);
+})();
+function wireTree(root){
+  root.querySelectorAll('.tgroup > .thead').forEach(h=>
+    h.addEventListener('click', ()=> h.parentElement.classList.toggle('open')));
+}
+
+/* ---------- users tree ---------- */
+(function(){
+  const el = document.getElementById('users-tree');
+  const users = {};
+  DATA.credentials.forEach(c=>{ users[(c.domain+'\\'+c.username)] = c; });
+  DATA.access.forEach(a=>{
+    const k = (a.domain? a.domain+'\\' : '') + a.user;
+    users[k] = users[k] || {username:a.user, domain:a.domain||'', source:'discovered via access map'};
+  });
+  const keys = Object.keys(users).sort();
+  el.innerHTML = keys.map(k=>{
+    const c = users[k];
+    const reach = DATA.access.filter(a=>
+      (a.domain? a.domain+'\\' : '')+a.user === k).map(a=>`${a.host} (${a.kind})`);
+    return `<div class="tgroup">
+      <div class="thead"><span class="caret">▶<\/span>
+        <span class="tname mono">${esc(k)}<\/span>
+        ${(c.password||c.nthash)?'<span class="badge-cred">creds<\/span>':''}
+        <span class="tbadge">${reach.length} host(s) reachable<\/span><\/div>
+      <div class="tbody">
+        <div class="kv">Source<\/div> <div class="mono">${esc(c.source)||'—'}<\/div>
+        <div class="kv">Password<\/div> <div class="mono pw">${c.password?esc(c.password):'—'}<\/div>
+        <div class="kv">NT hash<\/div> <div class="mono hs">${c.nthash?esc(c.nthash):'—'}<\/div>
+        <div class="kv">Can access<\/div>
+        <div class="mono">${reach.length? reach.map(esc).join(' · ') : '—'}<\/div>
+      <\/div><\/div>`;
+  }).join('') || '<div class="tgroup"><div class="tbody">no users<\/div><\/div>';
+  wireTree(el);
+})();
+
+/* ---------- network map (layered SVG) ---------- */
+const detail = document.getElementById('detail');
+function showDetail(title, rows){
+  detail.innerHTML = `<h3>${esc(title)}<\/h3>` +
+    rows.map(r=>`<div class="row"><span class="k">${esc(r[0])}<\/span> <span class="mono">${esc(r[1])}<\/span><\/div>`).join('');
+}
+(function(){
+  const svg = document.getElementById('map');
+  const dom = DATA.domain || 'DOMAIN';
+  const dcs = DATA.domain_controllers.length? DATA.domain_controllers
+             : DATA.hosts.filter(h=>h.is_dc).map(h=>h.ip);
+  const others = DATA.hosts.filter(h=>!dcs.includes(h.ip));
+  const users = [...new Set(DATA.access.map(a=>
+    (a.domain? a.domain+'\\':'')+a.user))];
+
+  // ---- layered left-to-right layout: DOMAIN | DC | hosts grid | users ----
+  const X_DOMAIN=90, X_DC=250, X_HOST0=430, X_USER=880;
+  const COLW=185, ROWH=52;
+  const hostCols = Math.max(1, Math.min(2, Math.ceil(others.length/6)));
+  const hostRows = Math.ceil(Math.max(others.length,1)/hostCols);
+  const userRows = Math.ceil(Math.max(users.length,1)/1);
+  const H = Math.max(560, Math.max(hostRows, userRows)*ROWH + 110);
+  const W = 1080;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.height = Math.min(H*0.9, 660)+'px';
+
+  const pos = {};
+  const cy = H/2;
+  pos['domain'] = [X_DOMAIN, cy];
+  dcs.forEach((ip,i)=>{
+    pos['dc:'+ip] = [X_DC, cy + (i-(dcs.length-1)/2)*80];
+  });
+  others.forEach((h,i)=>{
+    const col=i%hostCols, row=Math.floor(i/hostCols);
+    pos['h:'+h.ip] = [X_HOST0+col*COLW, 50+row*ROWH];
+  });
+  users.forEach((u,i)=>{
+    pos['u:'+u] = [X_USER, 50+i*ROWH];
+  });
+
+  // ---- edges ----
+  let edges = '';
+  const cx0=pos['domain'][0], cy0=pos['domain'][1];
+  dcs.forEach(ip=>{
+    const p=pos['dc:'+ip];
+    edges += `<line class="edge dc" x1="${cx0}" y1="${cy0}" x2="${p[0]}" y2="${p[1]}"/>`;
+  });
+  others.forEach(h=>{
+    const p=pos['h:'+h.ip];
+    edges += `<line class="edge" opacity="0.55" x1="${cx0}" y1="${cy0}" x2="${p[0]}" y2="${p[1]}"/>`;
+  });
+  DATA.access.forEach(a=>{
+    const key=(a.domain? a.domain+'\\':'')+a.user;
+    const pu=pos['u:'+key], ph=pos['h:'+a.host]||pos['dc:'+a.host];
+    if(!pu||!ph) return;
+    const cls='edge access'+(a.kind==='admin'?' admin':'');
+    edges += `<line class="${cls}" data-user="${esc(key)}" data-host="${esc(a.host)}" x1="${pu[0]}" y1="${pu[1]}" x2="${ph[0]}" y2="${ph[1]}"/>`;
+  });
+
+  // ---- nodes ----
+  function nodeBox(id,x,y,label,sub,fill,subfill){
+    return `<g class="node" data-id="${esc(id)}">
+      <rect x="${x-62}" y="${y-17}" width="124" height="36" rx="8"
+        fill="${fill}" stroke="#3d4b5c" stroke-width="1"/>
+      <text class="nlabel" x="${x}" y="${y-2}" text-anchor="middle">${esc(label).slice(0,17)}<\/text>
+      <text class="nsub" x="${x}" y="${y+12}" text-anchor="middle" ${subfill?`fill="${subfill}"`:''}>${esc(sub).slice(0,22)}<\/text>
+    <\/g>`;
+  }
+  let nodes = nodeBox('domain', cx0, cy0, dom.split('.')[0].toUpperCase(), 'DOMAIN', '#1c2b3d', '#3ba3ff');
+  dcs.forEach(ip=>{
+    const p=pos['dc:'+ip];
+    nodes += nodeBox('dc:'+ip, p[0], p[1], stripHost(DATA.hosts.find(h=>h.ip===ip)?.hostname)||'DC', ip, '#123a2b', '#00e5a0');
+  });
+  others.forEach(h=>{
+    const p=pos['h:'+h.ip];
+    const fill=h.smb_signing===false? '#3a2313':'#18222e';
+    nodes += nodeBox('h:'+h.ip, p[0], p[1], h.hostname? stripHost(h.hostname):h.ip, h.ip, fill);
+  });
+  users.forEach(u=>{
+    const p=pos['u:'+u];
+    nodes += `<g class="node" data-id="u:${esc(u)}">
+      <ellipse cx="${p[0]}" cy="${p[1]}" rx="58" ry="17" fill="#231833" stroke="#5b4a7a"/>
+      <text class="nlabel" x="${p[0]}" y="${p[1]+4}" text-anchor="middle">${esc(u.split('\\')[1]||u).slice(0,15)}<\/text>
+    <\/g>`;
+  });
+
+  svg.innerHTML = edges + nodes;
+
+  // ---- click → detail panel ----
+  svg.querySelectorAll('.node').forEach(n=>{
+    n.addEventListener('click', ()=>{
+      const id = n.dataset.id;
+      if(id==='domain'){
+        showDetail(dom, [
+          ['Domain SID', DATA.domain_sid||'—'],
+          ['DCs', DATA.domain_controllers.join(', ')||'—'],
+          ['Hosts', DATA.hosts.length],
+          ['Credentials', DATA.credentials.length],
+          ['DA / EA', (DATA.da?'YES':'NO')+' / '+(DATA.ea?'YES':'NO')],
+        ]);
+      } else if(id.startsWith('dc:')){
+        const ip=id.slice(3); const h=DATA.hosts.find(x=>x.ip===ip)||{};
+        showDetail('Domain Controller — '+ip, [
+          ['Hostname', h.hostname||'—'], ['OS', h.os||'—'],
+          ['Ports', (h.ports||[]).map(p=>p.port+(p.service?'/'+p.service:'')).join(' · ')||'—'],
+          ['Users with access', DATA.access.filter(a=>a.host===ip).map(a=>a.user+' ('+a.kind+')').join(', ')||'—'],
+        ]);
+      } else if(id.startsWith('h:')){
+        const ip=id.slice(2); const h=DATA.hosts.find(x=>x.ip===ip)||{};
+        showDetail('Host — '+ip, [
+          ['Hostname', h.hostname||'—'], ['OS', h.os||'—'],
+          ['SMB signing', h.smb_signing===false?'DISABLED — relayable':'—'],
+          ['Ports', (h.ports||[]).map(p=>p.port+(p.service?'/'+p.service:'')).join(' · ')||'—'],
+          ['Users with access', DATA.access.filter(a=>a.host===ip).map(a=>a.user+' ('+a.kind+')').join(', ')||'—'],
+        ]);
+      } else if(id.startsWith('u:')){
+        const u=id.slice(2);
+        const cred=DATA.credentials.find(c=>(c.domain+'\\'+c.username)===u);
+        const reach=DATA.access.filter(a=>(a.domain?a.domain+'\\':'')+a.user===u);
+        showDetail('User — '+u, [
+          ['Password', cred&&cred.password?'present (see Credentials tab)':'—'],
+          ['NT hash', cred&&cred.nthash?'present (see Credentials tab)':'—'],
+          ['Source', cred? cred.source : 'discovered via access map'],
+          ['Can access', reach.map(a=>a.host+' ('+a.kind+')').join(', ')||'—'],
+        ]);
+      }
+    });
+  });
+
+  // ---- hover → highlight connected edges ----
+  svg.querySelectorAll('.node').forEach(n=>{
+    n.addEventListener('mouseenter', ()=>{
+      const id=n.dataset.id;
+      let ukey=null, hostv=null;
+      if(id==='u:') return;
+      if(id.startsWith('u:')) ukey=id.slice(2);
+      else hostv=id.startsWith('dc:')? id.slice(3) : id.slice(2);
+      svg.querySelectorAll('.edge.access').forEach(e=>{
+        const match = ukey? e.dataset.user===ukey : e.dataset.host===hostv;
+        e.classList.toggle('faded', !match);
+        if(match) e.style.opacity='1';
+      });
+    });
+    n.addEventListener('mouseleave', ()=>{
+      svg.querySelectorAll('.edge.access').forEach(e=>{
+        e.classList.remove('faded'); e.style.opacity='';
+      });
+    });
+  });
+})();
+
+/* ---------- opsec ---------- */
+(function(){
+  const opsec = DATA.meta.opsec || {};
+  const byTool = opsec.by_tool || {};
+  const rows = Object.entries(byTool).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('opsec-cards').innerHTML = `
+    <div class="card c-acc"><div class="n">${opsec.commands||0}<\/div><div class="l">Total tool invocations<\/div><\/div>
+    <div class="card c-acc"><div class="n">${opsec.background||0}<\/div><div class="l">Background listeners<\/div><\/div>
+    <div class="card c-ok"><div class="n">${DATA.access.filter(a=>a.kind==='admin').length}<\/div><div class="l">Admin accesses (loud)<\/div><\/div>`;
+  document.querySelector('#opsec-tools tbody').innerHTML = rows.map(r=>
+    `<tr><td class="mono">${esc(r[0])}<\/td><td class="mono">${r[1]}<\/td><\/tr>`).join('')
+    || '<tr><td colspan=2 style="color:var(--dim)">no data<\/td><\/tr>';
+})();
+
+show('overview');
+</script>
+</body>
+</html>
